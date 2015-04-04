@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+<script src="http://knockoutjs.com/downloads/knockout-3.3.0.js"></script>
+<script src="knockout.mapping.js"></script>
+<script type="text/javascript">
+	function resultadospPartido(data){
+		this.numeroDivision = data.numeroDivision;
+		this.numeroVotosRelativo = data.numeroVotosRelativo;
+		this.esElegido = ko.observable(false);
+	}
+	function partidoPolitico(data){
+		this.nombrePartido = ko.observable(data.nombre)
+		this.identificador = ko.observable(data.identificador)
+		this.numeroVotos = ko.observable(data.numeroVotos)
+		this.arrayVotos = ko.observableArray([])
+	}
+	function gestionDhont(){
+		var root = this;
+		root.numeroDiputados = ko.observable();
+		root.partidosPoliticos = ko.observableArray([])
+		//root.partidosPoliticos.push(new partidoPolitico({nombre:'',numeroVotos:0}))
+		root.showTable=ko.observable(false);
+		root.datosEldiario = ko.observable();
+		root.provinciaElegida = ko.observable();
+		root.datosDado = ko.computed(function() {
+			var resultado = ko.observableArray([])
+			for (var i = 0; i < this.partidosPoliticos().length; i++) {
+				var pivote = this.partidosPoliticos()[i]
+				ko.utils.arrayPushAll(resultado, pivote.arrayVotos())  
+				//resultado.push(resultado().concat(pivote.arrayVotos()))
+			};
+			resultado.sort(function(left, right) { return left.numeroVotosRelativo == right.numeroVotosRelativo ? 0 : (left.numeroVotosRelativo < right.numeroVotosRelativo ? 1 : -1) })
+			return resultado()
+	    }, this);
+	    root.partidosPoliticos.sort(function(left, right) { return left.numeroVotos() == right.numeroVotos() ? 0 : (left.numeroVotos() < right.numeroVotos() ? 1 : -1) })
+
+		$.getJSON("http://elecciones.eldiario.es/autonomicas/andalucia/2015/huelva/data/andaluzas.json", function(allData){
+			root.datosEldiario(ko.mapping.fromJS(allData));
+			//console.log(Object.keys(root.datosEldiario().partidos))
+			root.numeroDiputados(root.provinciaElegida().escaños())
+			var arrayKeys = Object.keys(root.datosEldiario().partidos)
+			for (var i = 0; i < arrayKeys.length; i++) {
+				var pivote = root.datosEldiario().partidos[arrayKeys[i]]
+				if (arrayKeys[i].indexOf('1503') > -1)
+					root.partidosPoliticos.push(new partidoPolitico({nombre:pivote.sigla(),numeroVotos:0, identificador: arrayKeys[i]}))
+			};
+		   root.partidosPoliticos.sort(function(left, right) { return left.numeroVotos() == right.numeroVotos() ? 0 : (left.numeroVotos() < right.numeroVotos() ? 1 : -1) })
+			var resultados2015 = root.datosEldiario().resultados['1503']
+			var resultadosProvincia = resultados2015[root.provinciaElegida().id()]
+			for (var i = 0; i < root.partidosPoliticos().length; i++) {
+				var pivote = root.partidosPoliticos()[i]
+				var numVotos = resultadosProvincia[pivote.identificador()]
+				if (numVotos !== undefined)
+					numVotos = numVotos.votos()
+				else
+					numVotos = 0 
+				pivote.numeroVotos(numVotos)
+			};
+			root.creaYcalcula()
+		   root.partidosPoliticos.sort(function(left, right) { return left.numeroVotos() == right.numeroVotos() ? 0 : (left.numeroVotos() < right.numeroVotos() ? 1 : -1) })
+
+
+		})
+		root.addPartido = function(){
+			root.partidosPoliticos.push(new partidoPolitico({nombre:'',numeroVotos:0}))
+		}
+		root.actualizaVotos = function(){
+			var resultados2015 = root.datosEldiario().resultados['1503']
+			var resultadosProvincia = resultados2015[root.provinciaElegida().id()]
+			for (var i = 0; i < root.partidosPoliticos().length; i++) {
+				var pivote = root.partidosPoliticos()[i]
+				var numVotos = resultadosProvincia[pivote.identificador()]
+				if (numVotos !== undefined)
+					numVotos = numVotos.votos()
+				else
+					numVotos = 0 
+				pivote.numeroVotos(numVotos)
+			};
+			root.creaYcalcula()
+			   root.partidosPoliticos.sort(function(left, right) { return left.numeroVotos() == right.numeroVotos() ? 0 : (left.numeroVotos() < right.numeroVotos() ? 1 : -1) })
+		}
+		root.creaYcalcula = function(){
+			for (var i = 0; i < root.partidosPoliticos().length; i++) {
+				var pivote = root.partidosPoliticos()[i]
+				pivote.arrayVotos.removeAll()
+				for (var j = 1; j <= root.provinciaElegida().escaños(); j++) {
+					pivote.arrayVotos.push(new resultadospPartido({numeroDivision: j, numeroVotosRelativo: Math.round(pivote.numeroVotos()/j)}))
+				};
+			};
+			root.showTable(true)
+			for (var i = 0; i < root.provinciaElegida().escaños(); i++) {
+				var pivote2 = root.datosDado()[i]
+				pivote2.esElegido(true)
+				
+			};
+		}
+	}
+	$(document).ready(function() {
+
+	ko.applyBindings(new gestionDhont())
+});
+</script>
+</head>
+<body>
+	<div class="container">
+		<div class="col-lg-12">
+			<div class="row" data-bind="if: datosEldiario">
+				<select class="form-control" data-bind="options: $root.datosEldiario().provincias(), optionsText: 'nombre', value: provinciaElegida, event:{ change: actualizaVotos}"></select>
+			</div>
+			<div class="row" data-bind="if: datosEldiario">
+				<div class="col-lg-4">
+				<label data-bind="text: 'Numero de diputados ' + provinciaElegida().escaños()"></label>
+				</div>
+			</div>
+			<!--<div class="row">
+				<button class="btn btn-info" data-bind="click: creaYcalcula">Calcula reparto</button>
+			</div>-->
+			<!--<div data-bind="foreach: partidosPoliticos">
+			<div class="row">
+				<div class="col-lg-4">
+					<label>Partido politico</label>
+					<input type="text" class="form-control" data-bind="value: nombrePartido"/>
+					</div>
+					<div class="col-lg-4">
+					<label>Numero de votos</label>
+					<input type="text" class="form-control" data-bind="value: numeroVotos"/>
+				</div>
+				</div>
+			</div>-->
+			</br>
+			<div data-bind="if: showTable()">
+			<table class="table table-bordered">
+				<tbody>
+					<tr>
+						<td></td>
+						<!-- ko foreach: partidosPoliticos()[0].arrayVotos -->
+							<td data-bind="text: $index()+1"></td>
+						<!-- /ko -->
+					</tr>
+					<!-- ko foreach: partidosPoliticos -->
+					<tr>
+							<td data-bind="text: nombrePartido"></td>
+							<!-- ko foreach: $data.arrayVotos -->
+								<td data-bind="text: numeroVotosRelativo,css: {'success': $data.esElegido() }"></td>
+							<!-- /ko -->
+					</tr>
+					<!-- /ko -->
+				</tbody>
+			</table>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
